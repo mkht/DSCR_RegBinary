@@ -29,7 +29,7 @@ Class cRegBinary {
 
 
     [cRegBinary] Get() {
-        $private:RegKey = Get-Item -Lite.ralPath ('Registry::' + $this.Key) -ErrorAction SilentlyContinue
+        $private:RegKey = Get-Item -LiteralPath ('Registry::' + $this.Key) -ErrorAction SilentlyContinue
 
         if ($private:RegKey) {
             if ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
