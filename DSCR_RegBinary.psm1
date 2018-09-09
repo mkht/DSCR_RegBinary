@@ -1,4 +1,4 @@
-Enum Mode{
+Enum Mode {
     Overwrite
     Insert
 }
@@ -27,19 +27,29 @@ Class cRegBinary {
     [int]
     $Offset
 
+    [DSCProperty()]
+    [string]
+    $DefaultValue
 
     [cRegBinary] Get() {
         $private:RegKey = Get-Item -LiteralPath ('Registry::' + $this.Key) -ErrorAction SilentlyContinue
 
         if ($private:RegKey) {
-            if ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
+            if ($null -eq $private:RegKey.GetValue($this.ValueName)) {
+                Write-Verbose ('The registry value {0} is missing.' -f $this.ValueName)
+                $this.ValueData = $null
+            }
+            elseif ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
+                Write-Verbose ('The specified registry value is found, but the value kind is not a REG_BINARY.')
                 $this.ValueData = $null
             }
             else {
+                Write-Verbose ('The specified registry binary value is found')
                 $this.ValueData = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
             }
         }
         else {
+            Write-Verbose ('The registry key {0} is missing.' -f $this.Key)
             $this.ValueData = $null
         }
 
@@ -84,11 +94,17 @@ Class cRegBinary {
     Hidden [string] CreateNewValue() {
         $private:RegKey = Get-Item -LiteralPath ('Registry::' + $this.Key) -ErrorAction SilentlyContinue
 
-        if (-not $private:RegKey) {
-            return $this.ValueData
-        }
-        elseif ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
-            return $this.ValueData
+        if ((-not $private:RegKey) -or ($null -eq $private:RegKey.GetValue($this.ValueName)) -or ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary')) {
+            Write-Verbose ('Specified registry value is not found or not a REG_BINARY type.')
+
+            if (-not [string]::IsNullOrEmpty($this.DefaultValue)) {
+                Write-Verbose ('The registry value will be set to DefaultValue')
+                return $this.DefaultValue
+            }
+            else {
+                Write-Verbose ('The registry value will be set to "{0}"' -f $this.ValueData)
+                return $this.ValueData
+            }
         }
 
         [string]$originalValue = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
