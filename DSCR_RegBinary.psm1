@@ -71,8 +71,14 @@ Class cRegBinary {
         $path = ('Registry::' + $this.Key)
         $desiredValue = $this.CreateNewValue()
 
-        [Byte[]]$newValueBytes = for ($i = 0; $i -lt $desiredValue.Length; $i += 2) {
-            [Convert]::ToByte(([string]$desiredValue[$i] + [string]$desiredValue[$i + 1]), 16)
+        try {
+            [Byte[]]$newValueBytes = for ($i = 0; $i -lt $desiredValue.Length; $i += 2) {
+                [Convert]::ToByte(([string]$desiredValue[$i] + [string]$desiredValue[$i + 1]), 16)
+            }
+        }
+        catch {
+            Write-Error ('The Value "{0}" could not be converted to binary' -f $desiredValue)
+            return
         }
 
         if (-not (Test-Path -LiteralPath $path)) {
