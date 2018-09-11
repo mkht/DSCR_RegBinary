@@ -114,7 +114,7 @@ Class cRegBinary {
             'Overwrite' {
                 if ($this.Offset -gt $originalValue.Length) {
                     # Zero padding
-                    $span = (1..($originalValue.Length - $this.Offset)).ForEach( {'0'} ) -join [string]::Empty
+                    $span = (1..($this.Offset - $originalValue.Length)).ForEach( {'0'} ) -join [string]::Empty
                     $newValue = $originalValue + $span + $this.ValueData
                 }
                 elseif (($this.Offset + $this.ValueData.Length) -gt $originalValue.Length) {
@@ -128,7 +128,7 @@ Class cRegBinary {
             'Insert' {
                 if ($this.Offset -gt $originalValue.Length) {
                     # Zero padding
-                    $span = (1..($originalValue.Length - $this.Offset)).ForEach( {'0'}) -join [string]::Empty
+                    $span = (1..($this.Offset - $originalValue.Length)).ForEach( {'0'} ) -join [string]::Empty
                     $newValue = $originalValue + $span + $this.ValueData
                 }
                 else {
@@ -137,6 +137,12 @@ Class cRegBinary {
                 }
             }
         }
+
+        if (($newValue.Length % 2) -eq 1) {
+            $newValue = $newValue + '0'
+        }
+
+        Write-Verbose ('The registry value will be set to "{0}"' -f $newValue)
 
         return $newValue
     }
