@@ -99,15 +99,23 @@ Class cRegBinary {
 
             if (-not [string]::IsNullOrEmpty($this.DefaultValue)) {
                 Write-Verbose ('The registry value will be set to DefaultValue')
-                return $this.DefaultValue
-            }
-            else {
-                Write-Verbose ('The registry value will be set to "{0}"' -f $this.ValueData)
-                return $this.ValueData
+                $private:DefaultValue = $this.DefaultValue
+
+                if (($private:DefaultValue.Length % 2) -eq 1) {
+                    $private:DefaultValue = $private:DefaultValue + '0'
+                }
+
+                return $private:DefaultValue
             }
         }
 
-        [string]$originalValue = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
+        try {
+            [string]$originalValue = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
+        }
+        catch {
+            [string]$originalValue = [string]::Empty
+        }
+
         [string]$newValue = $originalValue
 
         switch ($this.Mode) {
