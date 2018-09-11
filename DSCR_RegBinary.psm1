@@ -1,4 +1,4 @@
-Enum Mode{
+Enum Mode {
     Overwrite
     Insert
 }
@@ -27,19 +27,29 @@ Class cRegBinary {
     [int]
     $Offset
 
+    [DSCProperty()]
+    [string]
+    $DefaultValue
 
     [cRegBinary] Get() {
         $private:RegKey = Get-Item -LiteralPath ('Registry::' + $this.Key) -ErrorAction SilentlyContinue
 
         if ($private:RegKey) {
-            if ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
+            if ($null -eq $private:RegKey.GetValue($this.ValueName)) {
+                Write-Verbose ('The registry value {0} is missing.' -f $this.ValueName)
+                $this.ValueData = $null
+            }
+            elseif ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
+                Write-Verbose ('The specified registry value is found, but the value kind is not a REG_BINARY.')
                 $this.ValueData = $null
             }
             else {
+                Write-Verbose ('The specified registry binary value is found')
                 $this.ValueData = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
             }
         }
         else {
+            Write-Verbose ('The registry key {0} is missing.' -f $this.Key)
             $this.ValueData = $null
         }
 
@@ -61,8 +71,14 @@ Class cRegBinary {
         $path = ('Registry::' + $this.Key)
         $desiredValue = $this.CreateNewValue()
 
-        [Byte[]]$newValueBytes = for ($i = 0; $i -lt $desiredValue.Length; $i += 2) {
-            [Convert]::ToByte(([string]$desiredValue[$i] + [string]$desiredValue[$i + 1]), 16)
+        try {
+            [Byte[]]$newValueBytes = for ($i = 0; $i -lt $desiredValue.Length; $i += 2) {
+                [Convert]::ToByte(([string]$desiredValue[$i] + [string]$desiredValue[$i + 1]), 16)
+            }
+        }
+        catch {
+            Write-Error ('The Value "{0}" could not be converted to binary' -f $desiredValue)
+            return
         }
 
         if (-not (Test-Path -LiteralPath $path)) {
@@ -84,21 +100,35 @@ Class cRegBinary {
     Hidden [string] CreateNewValue() {
         $private:RegKey = Get-Item -LiteralPath ('Registry::' + $this.Key) -ErrorAction SilentlyContinue
 
-        if (-not $private:RegKey) {
-            return $this.ValueData
-        }
-        elseif ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary') {
-            return $this.ValueData
+        if ((-not $private:RegKey) -or ($null -eq $private:RegKey.GetValue($this.ValueName)) -or ($private:RegKey.GetValueKind($this.ValueName) -ne 'Binary')) {
+            Write-Verbose ('Specified registry value is not found or not a REG_BINARY type.')
+
+            if (-not [string]::IsNullOrEmpty($this.DefaultValue)) {
+                Write-Verbose ('The registry value will be set to DefaultValue')
+                $private:DefaultValue = $this.DefaultValue
+
+                if (($private:DefaultValue.Length % 2) -eq 1) {
+                    $private:DefaultValue = $private:DefaultValue + '0'
+                }
+
+                return $private:DefaultValue
+            }
         }
 
-        [string]$originalValue = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
+        try {
+            [string]$originalValue = [System.BitConverter]::ToString($private:RegKey.GetValue($this.ValueName)).Replace('-', [string]::Empty)
+        }
+        catch {
+            [string]$originalValue = [string]::Empty
+        }
+
         [string]$newValue = $originalValue
 
         switch ($this.Mode) {
             'Overwrite' {
                 if ($this.Offset -gt $originalValue.Length) {
                     # Zero padding
-                    $span = (1..($originalValue.Length - $this.Offset)).ForEach( {'0'} ) -join [string]::Empty
+                    $span = (1..($this.Offset - $originalValue.Length)).ForEach( {'0'} ) -join [string]::Empty
                     $newValue = $originalValue + $span + $this.ValueData
                 }
                 elseif (($this.Offset + $this.ValueData.Length) -gt $originalValue.Length) {
@@ -112,7 +142,7 @@ Class cRegBinary {
             'Insert' {
                 if ($this.Offset -gt $originalValue.Length) {
                     # Zero padding
-                    $span = (1..($originalValue.Length - $this.Offset)).ForEach( {'0'}) -join [string]::Empty
+                    $span = (1..($this.Offset - $originalValue.Length)).ForEach( {'0'} ) -join [string]::Empty
                     $newValue = $originalValue + $span + $this.ValueData
                 }
                 else {
@@ -121,6 +151,12 @@ Class cRegBinary {
                 }
             }
         }
+
+        if (($newValue.Length % 2) -eq 1) {
+            $newValue = $newValue + '0'
+        }
+
+        Write-Verbose ('The registry value will be set to "{0}"' -f $newValue)
 
         return $newValue
     }
